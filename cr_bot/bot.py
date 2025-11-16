@@ -65,7 +65,7 @@ class BotManager:
             self.response_manager.add(trigger, response)
 
             await message.edit(
-                content=f"Trigger added successfully!\n{trigger}\n-> {response}"
+                content=f"Trigger added successfully!\n`{trigger}`\n-> {response}"
             )
 
         @self.tree.command(
@@ -86,7 +86,7 @@ class BotManager:
 
                 self.response_manager.remove(id)
                 await message.edit(
-                    content=f"Trigger removed successfully! \n{deleted_response['trigger']}\n-> {deleted_response['response']}"
+                    content=f"Trigger removed successfully! \n`{deleted_response['trigger']}`\n-> {deleted_response['response']}"
                 )
             except IndexError:
                 await message.edit(content="Error: Response ID out of range.")
@@ -112,7 +112,7 @@ class BotManager:
 
             for idx, resp in enumerate(self.response_manager.list()):
                 embed.add_field(
-                    name=f"{idx}: {resp['trigger']}",
+                    name=f"{idx}: `{resp['trigger']}`",
                     value=resp["response"],
                     inline=False,
                 )
