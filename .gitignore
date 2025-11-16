@@ -8,3 +8,13 @@ wheels/
 
 # Virtual environments
 .venv
+
+# environments
+.env
+
+# data files
+data/
+logs/
+
+# Development files
+.dev/
