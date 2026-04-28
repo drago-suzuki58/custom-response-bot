@@ -149,7 +149,10 @@ class BotManager:
 
             view = ResponseBrowserView(responses, interaction.user.id)
             await interaction.response.send_message(
-                embeds=view.build_embeds(), view=view, ephemeral=True
+                content=view.build_content(),
+                embeds=view.build_embeds(),
+                view=view,
+                ephemeral=True,
             )
 
         @self.tree.command(
@@ -162,7 +165,10 @@ class BotManager:
             catalog = FunctionCatalog()
             view = FunctionBrowserView(catalog, interaction.user.id)
             await interaction.response.send_message(
-                embeds=view.build_embeds(), view=view, ephemeral=True
+                content=view.build_content(),
+                embeds=view.build_embeds(),
+                view=view,
+                ephemeral=True,
             )
 
         logger.info("Commands set up successfully!")

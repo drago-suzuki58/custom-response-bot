@@ -29,6 +29,7 @@ class FunctionNodeSelect(discord.ui.Select):
         view: FunctionBrowserView = self.view  # type: ignore[assignment]
         view.current_node_id = self.values[0]
         view.page = 0
+        view.copy_mode = False
         await view.update(interaction)
 
 
@@ -42,6 +43,7 @@ class FunctionBackButton(discord.ui.Button):
         if parent is not None:
             view.current_node_id = parent.id
             view.page = 0
+            view.copy_mode = False
         await view.update(interaction)
 
 
@@ -53,6 +55,7 @@ class FunctionRootButton(discord.ui.Button):
         view: FunctionBrowserView = self.view  # type: ignore[assignment]
         view.current_node_id = view.catalog.root.id
         view.page = 0
+        view.copy_mode = False
         await view.update(interaction)
 
 
@@ -63,6 +66,7 @@ class FunctionPrevButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction) -> None:
         view: FunctionBrowserView = self.view  # type: ignore[assignment]
         view.page = max(0, view.page - 1)
+        view.copy_mode = False
         await view.update(interaction)
 
 
@@ -73,6 +77,7 @@ class FunctionNextButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction) -> None:
         view: FunctionBrowserView = self.view  # type: ignore[assignment]
         view.page += 1
+        view.copy_mode = False
         await view.update(interaction)
 
 
@@ -84,6 +89,26 @@ class FunctionCloseButton(discord.ui.Button):
         await interaction.response.edit_message(content="関数ブラウザを閉じました。", embeds=[], view=None)
 
 
+class FunctionCopyButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Copy", style=discord.ButtonStyle.success, row=0)
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view: FunctionBrowserView = self.view  # type: ignore[assignment]
+        view.copy_mode = True
+        await view.update(interaction)
+
+
+class FunctionBackToDetailButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Back to Detail", style=discord.ButtonStyle.secondary, row=0)
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view: FunctionBrowserView = self.view  # type: ignore[assignment]
+        view.copy_mode = False
+        await view.update(interaction)
+
+
 class FunctionBrowserView(discord.ui.View):
     def __init__(self, catalog: FunctionCatalog, owner_id: int):
         super().__init__(timeout=VIEW_TIMEOUT)
@@ -91,6 +116,7 @@ class FunctionBrowserView(discord.ui.View):
         self.owner_id = owner_id
         self.current_node_id = catalog.root.id
         self.page = 0
+        self.copy_mode = False
         self.rebuild_items()
 
     @property
@@ -106,7 +132,9 @@ class FunctionBrowserView(discord.ui.View):
 
     async def update(self, interaction: discord.Interaction) -> None:
         self.rebuild_items()
-        await interaction.response.edit_message(embeds=self.build_embeds(), view=self)
+        await interaction.response.edit_message(
+            content=self.build_content(), embeds=self.build_embeds(), view=self
+        )
 
     def rebuild_items(self) -> None:
         self.clear_items()
@@ -114,9 +142,16 @@ class FunctionBrowserView(discord.ui.View):
         children = self.visible_children
         parent = self.parent_node(node)
 
+        if self.copy_mode:
+            self.add_item(FunctionBackToDetailButton())
+            self.add_item(FunctionCloseButton())
+            return
+
         if children:
             self.add_item(FunctionNodeSelect(children))
 
+        if node.is_function:
+            self.add_item(FunctionCopyButton())
         self.add_item(FunctionBackButton(disabled=parent is None))
         self.add_item(FunctionRootButton(disabled=node.id == self.catalog.root.id))
         self.add_item(FunctionPrevButton(disabled=self.page <= 0 or node.is_function))
@@ -147,7 +182,20 @@ class FunctionBrowserView(discord.ui.View):
 
         return None
 
+    def build_content(self) -> str | None:
+        if not self.copy_mode:
+            return None
+
+        node = self.current_node
+        if node.meta is None:
+            return "コピーできる関数情報がありません。"
+
+        return "\n".join(node.meta.samples)
+
     def build_embeds(self) -> list[discord.Embed]:
+        if self.copy_mode:
+            return []
+
         node = self.current_node
         if node.is_function:
             return self._build_function_embeds(node)
@@ -201,9 +249,7 @@ class FunctionBrowserView(discord.ui.View):
         if meta.source_path:
             detail.add_field(name="Source", value=f"`{meta.source_path}`", inline=False)
 
-        copy_ready = discord.Embed(title="Copy Ready", color=0x2ECC71)
-        copy_ready.description = code_block(truncate_text("\n".join(meta.samples), 3900), "text")
-        return [detail, copy_ready]
+        return [detail]
 
     @staticmethod
     def total_pages(node: CatalogNode) -> int:

@@ -156,5 +156,6 @@ python main.py
 - Selectで項目を選択できます
 - `Prev` / `Next` でページ移動できます
 - `Back` / `Root` で階層を戻れます
-- 関数詳細では、コピーしやすい `func://...` のEmbedを表示します
-- レスポンス詳細では、コピーしやすい `trigger` と `response` のEmbedを表示します
+- 関数詳細では、`Copy` ボタンで `func://...` をプレーンテキスト表示できます
+- レスポンス詳細では、`Copy` ボタンで `trigger` と `response` をラベル付きプレーンテキスト表示できます
+- コピーモードからは `Back to Detail` で詳細画面に戻れます

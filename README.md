@@ -158,5 +158,6 @@ If image embeds work in a test server but not in production, check whether `Embe
 - Select items from dropdowns
 - Move through pages with `Prev` / `Next`
 - Navigate function folders with `Back` / `Root`
-- Function details include a copy-friendly `func://...` embed
-- Response details include copy-friendly `trigger` and `response` embeds
+- Function details include a `Copy` button that shows `func://...` as plain text
+- Response details include a `Copy` button that shows labeled `trigger` and `response` plain text
+- Use `Back to Detail` to return from copy mode

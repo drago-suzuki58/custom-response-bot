@@ -30,6 +30,7 @@ class ResponseFilterSelect(discord.ui.Select):
         view.filter_key = self.values[0]
         view.page = 0
         view.selected_index = None
+        view.copy_mode = False
         await view.update(interaction)
 
 
@@ -52,6 +53,7 @@ class ResponseSelect(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction) -> None:
         view: ResponseBrowserView = self.view  # type: ignore[assignment]
         view.selected_index = int(self.values[0])
+        view.copy_mode = False
         await view.update(interaction)
 
 
@@ -62,6 +64,7 @@ class ResponseBackButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction) -> None:
         view: ResponseBrowserView = self.view  # type: ignore[assignment]
         view.selected_index = None
+        view.copy_mode = False
         await view.update(interaction)
 
 
@@ -73,6 +76,7 @@ class ResponsePrevButton(discord.ui.Button):
         view: ResponseBrowserView = self.view  # type: ignore[assignment]
         view.page = max(0, view.page - 1)
         view.selected_index = None
+        view.copy_mode = False
         await view.update(interaction)
 
 
@@ -84,6 +88,7 @@ class ResponseNextButton(discord.ui.Button):
         view: ResponseBrowserView = self.view  # type: ignore[assignment]
         view.page += 1
         view.selected_index = None
+        view.copy_mode = False
         await view.update(interaction)
 
 
@@ -95,6 +100,26 @@ class ResponseCloseButton(discord.ui.Button):
         await interaction.response.edit_message(content="レスポンスブラウザを閉じました。", embeds=[], view=None)
 
 
+class ResponseCopyButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Copy", style=discord.ButtonStyle.success, row=0)
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view: ResponseBrowserView = self.view  # type: ignore[assignment]
+        view.copy_mode = True
+        await view.update(interaction)
+
+
+class ResponseBackToDetailButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Back to Detail", style=discord.ButtonStyle.secondary, row=0)
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view: ResponseBrowserView = self.view  # type: ignore[assignment]
+        view.copy_mode = False
+        await view.update(interaction)
+
+
 class ResponseBrowserView(discord.ui.View):
     def __init__(self, responses: list[dict], owner_id: int):
         super().__init__(timeout=VIEW_TIMEOUT)
@@ -103,6 +128,7 @@ class ResponseBrowserView(discord.ui.View):
         self.filter_key = "all"
         self.page = 0
         self.selected_index: int | None = None
+        self.copy_mode = False
         self.rebuild_items()
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -114,11 +140,24 @@ class ResponseBrowserView(discord.ui.View):
 
     async def update(self, interaction: discord.Interaction) -> None:
         self.rebuild_items()
-        await interaction.response.edit_message(embeds=self.build_embeds(), view=self)
+        await interaction.response.edit_message(
+            content=self.build_content(), embeds=self.build_embeds(), view=self
+        )
 
     def rebuild_items(self) -> None:
         self.clear_items()
         entries = self.visible_entries
+
+        if self.copy_mode:
+            self.add_item(ResponseBackToDetailButton())
+            self.add_item(ResponseCloseButton())
+            return
+
+        if self.selected_index is not None:
+            self.add_item(ResponseCopyButton())
+            self.add_item(ResponseBackButton(disabled=False))
+            self.add_item(ResponseCloseButton())
+            return
 
         self.add_item(ResponseFilterSelect(self.filter_key))
         if entries:
@@ -162,7 +201,19 @@ class ResponseBrowserView(discord.ui.View):
             return not any(token in response_text for token in ("func://", "img://", "imgs://"))
         return True
 
+    def build_content(self) -> str | None:
+        if not self.copy_mode or self.selected_index is None:
+            return None
+
+        resp = self.responses[self.selected_index]
+        trigger = str(resp.get("trigger", ""))
+        response = str(resp.get("response", ""))
+        return f"trigger:\n{trigger}\n\nresponse:\n{response}"
+
     def build_embeds(self) -> list[discord.Embed]:
+        if self.copy_mode:
+            return []
+
         if self.selected_index is not None:
             return self._build_detail_embeds(self.selected_index)
 
@@ -210,12 +261,7 @@ class ResponseBrowserView(discord.ui.View):
         detail.add_field(name="Trigger", value=code_block(truncate_text(trigger, 1000), "regex"), inline=False)
         detail.add_field(name="Response", value=code_block(truncate_text(response, 1000), "text"), inline=False)
 
-        copy_ready = discord.Embed(title="Copy Ready", color=0x2ECC71)
-        copy_ready.description = truncate_text(
-            f"Trigger\n{code_block(trigger, 'regex')}\nResponse\n{code_block(response, 'text')}",
-            4000,
-        )
-        return [detail, copy_ready]
+        return [detail]
 
     @staticmethod
     def flags(resp: dict) -> list[str]:
