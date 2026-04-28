@@ -26,9 +26,12 @@ class BotManager:
         async def on_ready():
             logger.info(f"Logged in as {self.bot.user}")
 
-            self.setup_commands()
-            await self.tree.sync()
-            logger.info("Synced commands Successfully")
+            if env.COMMAND_ENABLED:
+                self.setup_commands()
+                await self.tree.sync()
+                logger.info("Synced commands Successfully")
+            else:
+                logger.info("Command functionality is disabled.")
 
             response_count = len(self.response_manager.list())
             logger.info(f"Loaded {response_count} responses.")
@@ -58,13 +61,11 @@ class BotManager:
             interaction: discord.Interaction, trigger: str, response: str
         ):
             logger.debug(f"{interaction.guild_id} - add_response")
-
             await interaction.response.defer()
-            message = await interaction.followup.send("Adding trigger...", wait=True)
 
             self.response_manager.add(trigger, response)
 
-            await message.edit(
+            await interaction.followup.send(
                 content=f"Trigger added successfully!\n`{trigger}`\n-> {response}"
             )
 
@@ -75,9 +76,7 @@ class BotManager:
         @describe(id="The ID of the response to remove")
         async def remove_event(interaction: discord.Interaction, id: int):
             logger.debug(f"{interaction.guild_id} - remove_response")
-
             await interaction.response.defer()
-            message = await interaction.followup.send("Removing trigger...", wait=True)
 
             try:
                 deleted_response = self.response_manager.get(id)
@@ -85,11 +84,13 @@ class BotManager:
                     raise IndexError("Response ID out of range")
 
                 self.response_manager.remove(id)
-                await message.edit(
+                await interaction.followup.send(
                     content=f"Trigger removed successfully! \n`{deleted_response['trigger']}`\n-> {deleted_response['response']}"
                 )
             except IndexError:
-                await message.edit(content="Error: Response ID out of range.")
+                await interaction.followup.send(
+                    content="Error: Response ID out of range."
+                )
 
         @self.tree.command(
             name="list_responses",
@@ -97,13 +98,11 @@ class BotManager:
         )
         async def list_event(interaction: discord.Interaction):
             logger.debug(f"{interaction.guild_id} - list_responses")
-
             await interaction.response.defer()
-            message = await interaction.followup.send("Fetching triggers...", wait=True)
 
             responses = self.response_manager.list()
             if not responses:
-                await interaction.response.send_message("No response triggers found.")
+                await interaction.followup.send("No response triggers found.")
                 return
 
             embed = discord.Embed(
@@ -117,7 +116,7 @@ class BotManager:
                     inline=False,
                 )
 
-            await message.edit(embed=embed)
+            await interaction.followup.send(embed=embed)
 
         logger.info("Commands set up successfully!")
 
