@@ -36,6 +36,13 @@ class ResponseManager:
         else:
             raise IndexError("Response ID out of range")
 
+    def update(self, id: int, trigger: str, response: str) -> None:
+        if 0 <= id < len(self.responses):
+            self.responses[id] = {"trigger": trigger, "response": response}
+            self.save()
+        else:
+            raise IndexError("Response ID out of range")
+
     def list(self) -> list[dict]:
         return self.responses
 

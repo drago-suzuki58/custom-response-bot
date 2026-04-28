@@ -1,5 +1,6 @@
 import discord
 
+from cr_bot.response import ResponseManager
 from cr_bot.ui.common import PAGE_SIZE, VIEW_TIMEOUT, reject_other_user, truncate_text
 from cr_bot.ui.response_display import (
     build_response_copy_text,
@@ -36,6 +37,8 @@ class ResponseFilterSelect(discord.ui.Select):
         view.page = 0
         view.selected_index = None
         view.copy_mode = False
+        view.delete_confirm_mode = False
+        view.deleted_response = None
         await view.update(interaction)
 
 
@@ -59,6 +62,10 @@ class ResponseSelect(discord.ui.Select):
         view: ResponseBrowserView = self.view  # type: ignore[assignment]
         view.selected_index = int(self.values[0])
         view.copy_mode = False
+        view.delete_confirm_mode = False
+        view.deleted_response = None
+        view.detail_title = None
+        view.detail_color = 6956287
         await view.update(interaction)
 
 
@@ -70,6 +77,10 @@ class ResponseBackButton(discord.ui.Button):
         view: ResponseBrowserView = self.view  # type: ignore[assignment]
         view.selected_index = None
         view.copy_mode = False
+        view.delete_confirm_mode = False
+        view.deleted_response = None
+        view.detail_title = None
+        view.detail_color = 6956287
         await view.update(interaction)
 
 
@@ -82,6 +93,8 @@ class ResponsePrevButton(discord.ui.Button):
         view.page = max(0, view.page - 1)
         view.selected_index = None
         view.copy_mode = False
+        view.delete_confirm_mode = False
+        view.deleted_response = None
         await view.update(interaction)
 
 
@@ -94,6 +107,8 @@ class ResponseNextButton(discord.ui.Button):
         view.page += 1
         view.selected_index = None
         view.copy_mode = False
+        view.delete_confirm_mode = False
+        view.deleted_response = None
         await view.update(interaction)
 
 
@@ -123,6 +138,152 @@ class ResponseBackToDetailButton(discord.ui.Button):
         view: ResponseBrowserView = self.view  # type: ignore[assignment]
         view.copy_mode = False
         await view.update(interaction)
+
+
+class ResponseEditButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Edit", style=discord.ButtonStyle.primary, row=0)
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view: ResponseBrowserView = self.view  # type: ignore[assignment]
+        if view.selected_index is None:
+            await interaction.response.send_message("編集対象が選択されていません。", ephemeral=True)
+            return
+
+        try:
+            resp = view.responses[view.selected_index]
+        except IndexError:
+            await interaction.response.send_message("編集対象が見つかりません。", ephemeral=True)
+            return
+
+        await interaction.response.send_modal(ResponseEditModal(view, view.selected_index, resp))
+
+
+class ResponseDeleteButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Delete", style=discord.ButtonStyle.danger, row=0)
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view: ResponseBrowserView = self.view  # type: ignore[assignment]
+        view.copy_mode = False
+        view.delete_confirm_mode = True
+        await view.update(interaction)
+
+
+class ResponseConfirmDeleteButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Confirm Delete", style=discord.ButtonStyle.danger, row=0)
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view: ResponseBrowserView = self.view  # type: ignore[assignment]
+        if view.selected_index is None:
+            await interaction.response.send_message("削除対象が選択されていません。", ephemeral=True)
+            return
+
+        try:
+            deleted_response = view.responses[view.selected_index]
+            deleted_id = view.selected_index
+            view.response_manager.remove(view.selected_index)
+        except IndexError:
+            await interaction.response.send_message("削除対象が見つかりません。", ephemeral=True)
+            return
+
+        view.deleted_response = (deleted_id, deleted_response)
+        view.selected_index = None
+        view.copy_mode = False
+        view.delete_confirm_mode = False
+        view.detail_title = None
+        view.detail_color = 6956287
+        view.ensure_page_in_range()
+        await view.update(interaction)
+
+
+class ResponseCancelDeleteButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Cancel", style=discord.ButtonStyle.secondary, row=0)
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view: ResponseBrowserView = self.view  # type: ignore[assignment]
+        view.delete_confirm_mode = False
+        await view.update(interaction)
+
+
+class ResponseEditModal(discord.ui.Modal):
+    def __init__(self, view: "ResponseBrowserView", idx: int, resp: dict):
+        super().__init__(title=f"Edit Response #{idx}")
+        self.browser_view = view
+        self.idx = idx
+        self.trigger_input = discord.ui.TextInput(
+            label="Trigger",
+            style=discord.TextStyle.paragraph,
+            default=str(resp.get("trigger", ""))[:4000],
+            max_length=4000,
+            required=True,
+        )
+        self.response_input = discord.ui.TextInput(
+            label="Response",
+            style=discord.TextStyle.paragraph,
+            default=str(resp.get("response", ""))[:4000],
+            max_length=4000,
+            required=True,
+        )
+        self.add_item(self.trigger_input)
+        self.add_item(self.response_input)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        try:
+            self.browser_view.response_manager.update(
+                self.idx,
+                str(self.trigger_input.value),
+                str(self.response_input.value),
+            )
+        except IndexError:
+            await interaction.response.send_message("更新対象が見つかりません。", ephemeral=True)
+            return
+
+        self.browser_view.selected_index = self.idx
+        self.browser_view.copy_mode = False
+        self.browser_view.delete_confirm_mode = False
+        self.browser_view.deleted_response = None
+        self.browser_view.detail_title = "Response Updated"
+        self.browser_view.detail_color = 0x2ECC71
+        await self.browser_view.update(interaction)
+
+
+class AddResponseModal(discord.ui.Modal):
+    def __init__(self, response_manager: ResponseManager, owner_id: int):
+        super().__init__(title="Add Response")
+        self.response_manager = response_manager
+        self.owner_id = owner_id
+        self.trigger_input = discord.ui.TextInput(
+            label="Trigger",
+            style=discord.TextStyle.paragraph,
+            max_length=4000,
+            required=True,
+        )
+        self.response_input = discord.ui.TextInput(
+            label="Response",
+            style=discord.TextStyle.paragraph,
+            max_length=4000,
+            required=True,
+        )
+        self.add_item(self.trigger_input)
+        self.add_item(self.response_input)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        new_id = len(self.response_manager.list())
+        self.response_manager.add(
+            str(self.trigger_input.value),
+            str(self.response_input.value),
+        )
+        added_response = self.response_manager.get(new_id)
+        view = AddedResponseView(new_id, added_response, self.owner_id)
+        await interaction.response.send_message(
+            content=view.build_content(),
+            embeds=view.build_embeds(),
+            view=view,
+            ephemeral=True,
+        )
 
 
 class AddedResponseCopyButton(discord.ui.Button):
@@ -206,15 +367,23 @@ class AddedResponseView(discord.ui.View):
 
 
 class ResponseBrowserView(discord.ui.View):
-    def __init__(self, responses: list[dict], owner_id: int):
+    def __init__(self, response_manager: ResponseManager, owner_id: int):
         super().__init__(timeout=VIEW_TIMEOUT)
-        self.responses = responses
+        self.response_manager = response_manager
         self.owner_id = owner_id
         self.filter_key = "all"
         self.page = 0
         self.selected_index: int | None = None
         self.copy_mode = False
+        self.delete_confirm_mode = False
+        self.deleted_response: tuple[int, dict] | None = None
+        self.detail_title: str | None = None
+        self.detail_color = 6956287
         self.rebuild_items()
+
+    @property
+    def responses(self) -> list[dict]:
+        return self.response_manager.list()
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id == self.owner_id:
@@ -238,8 +407,21 @@ class ResponseBrowserView(discord.ui.View):
             self.add_item(ResponseCloseButton())
             return
 
+        if self.deleted_response is not None:
+            self.add_item(ResponseBackButton(disabled=False))
+            self.add_item(ResponseCloseButton())
+            return
+
+        if self.delete_confirm_mode:
+            self.add_item(ResponseConfirmDeleteButton())
+            self.add_item(ResponseCancelDeleteButton())
+            self.add_item(ResponseCloseButton())
+            return
+
         if self.selected_index is not None:
             self.add_item(ResponseCopyButton())
+            self.add_item(ResponseEditButton())
+            self.add_item(ResponseDeleteButton())
             self.add_item(ResponseBackButton(disabled=False))
             self.add_item(ResponseCloseButton())
             return
@@ -270,6 +452,10 @@ class ResponseBrowserView(discord.ui.View):
     def has_next_page(self) -> bool:
         return (self.page + 1) * PAGE_SIZE < len(self.filtered_entries)
 
+    def ensure_page_in_range(self) -> None:
+        max_page = self.total_pages(len(self.filtered_entries)) - 1
+        self.page = min(self.page, max(0, max_page))
+
     def matches_filter(self, resp: dict) -> bool:
         response_text = str(resp.get("response", ""))
         if self.filter_key == "all":
@@ -296,6 +482,27 @@ class ResponseBrowserView(discord.ui.View):
     def build_embeds(self) -> list[discord.Embed]:
         if self.copy_mode:
             return []
+
+        if self.deleted_response is not None:
+            deleted_id, deleted_response = self.deleted_response
+            embed = build_response_detail_embed(
+                deleted_id,
+                deleted_response,
+                title="Response Deleted",
+                color=0xE74C3C,
+            )
+            embed.set_footer(text="削除後は後続のIDが詰まります。")
+            return [embed]
+
+        if self.delete_confirm_mode and self.selected_index is not None:
+            embed = build_response_detail_embed(
+                self.selected_index,
+                self.responses[self.selected_index],
+                title="Confirm Delete",
+                color=0xE74C3C,
+            )
+            embed.description = "このレスポンスを削除します。操作は取り消せません。"
+            return [embed]
 
         if self.selected_index is not None:
             return self._build_detail_embeds(self.selected_index)
@@ -333,6 +540,8 @@ class ResponseBrowserView(discord.ui.View):
             build_response_detail_embed(
                 idx,
                 self.responses[idx],
+                title=self.detail_title,
+                color=self.detail_color,
                 filter_label=FILTERS[self.filter_key],
             )
         ]

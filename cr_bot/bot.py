@@ -1,7 +1,6 @@
 import re
 
 import discord
-from discord.app_commands import describe
 from loguru import logger
 
 import cr_bot.env as env
@@ -11,7 +10,7 @@ from cr_bot.function_catalog import FunctionCatalog
 from cr_bot.render_types import RenderedResponse
 from cr_bot.response_renderer import ResponseRenderer
 from cr_bot.ui.function_browser import FunctionBrowserView
-from cr_bot.ui.response_browser import AddedResponseView, ResponseBrowserView
+from cr_bot.ui.response_browser import AddResponseModal, ResponseBrowserView
 
 
 class BotManager:
@@ -94,49 +93,11 @@ class BotManager:
             name="add_response",
             description="Add a new response trigger",
         )
-        @describe(
-            trigger="The trigger word or phrase",
-            response="The response message",
-        )
-        async def add_event(
-            interaction: discord.Interaction, trigger: str, response: str
-        ):
+        async def add_event(interaction: discord.Interaction):
             logger.debug(f"{interaction.guild_id} - add_response")
-
-            new_id = len(self.response_manager.list())
-            self.response_manager.add(trigger, response)
-            added_response = self.response_manager.get(new_id)
-
-            view = AddedResponseView(new_id, added_response, interaction.user.id)
-            await interaction.response.send_message(
-                content=view.build_content(),
-                embeds=view.build_embeds(),
-                view=view,
-                ephemeral=True,
+            await interaction.response.send_modal(
+                AddResponseModal(self.response_manager, interaction.user.id)
             )
-
-        @self.tree.command(
-            name="remove_response",
-            description="Remove a response trigger by its ID",
-        )
-        @describe(id="The ID of the response to remove")
-        async def remove_event(interaction: discord.Interaction, id: int):
-            logger.debug(f"{interaction.guild_id} - remove_response")
-            await interaction.response.defer()
-
-            try:
-                deleted_response = self.response_manager.get(id)
-                if deleted_response is None:
-                    raise IndexError("Response ID out of range")
-
-                self.response_manager.remove(id)
-                await interaction.followup.send(
-                    content=f"Trigger removed successfully! \n`{deleted_response['trigger']}`\n-> {deleted_response['response']}"
-                )
-            except IndexError:
-                await interaction.followup.send(
-                    content="Error: Response ID out of range."
-                )
 
         @self.tree.command(
             name="list_responses",
@@ -152,7 +113,7 @@ class BotManager:
                 )
                 return
 
-            view = ResponseBrowserView(responses, interaction.user.id)
+            view = ResponseBrowserView(self.response_manager, interaction.user.id)
             await interaction.response.send_message(
                 content=view.build_content(),
                 embeds=view.build_embeds(),
