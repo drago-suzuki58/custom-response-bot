@@ -11,7 +11,7 @@ from cr_bot.function_catalog import FunctionCatalog
 from cr_bot.render_types import RenderedResponse
 from cr_bot.response_renderer import ResponseRenderer
 from cr_bot.ui.function_browser import FunctionBrowserView
-from cr_bot.ui.response_browser import ResponseBrowserView
+from cr_bot.ui.response_browser import AddedResponseView, ResponseBrowserView
 
 
 class BotManager:
@@ -102,12 +102,17 @@ class BotManager:
             interaction: discord.Interaction, trigger: str, response: str
         ):
             logger.debug(f"{interaction.guild_id} - add_response")
-            await interaction.response.defer()
 
+            new_id = len(self.response_manager.list())
             self.response_manager.add(trigger, response)
+            added_response = self.response_manager.get(new_id)
 
-            await interaction.followup.send(
-                content=f"Trigger added successfully!\n`{trigger}`\n-> {response}"
+            view = AddedResponseView(new_id, added_response, interaction.user.id)
+            await interaction.response.send_message(
+                content=view.build_content(),
+                embeds=view.build_embeds(),
+                view=view,
+                ephemeral=True,
             )
 
         @self.tree.command(

@@ -1,6 +1,11 @@
 import discord
 
-from cr_bot.ui.common import PAGE_SIZE, VIEW_TIMEOUT, code_block, reject_other_user, truncate_text
+from cr_bot.ui.common import PAGE_SIZE, VIEW_TIMEOUT, reject_other_user, truncate_text
+from cr_bot.ui.response_display import (
+    build_response_copy_text,
+    build_response_detail_embed,
+    response_flags,
+)
 
 
 FILTERS = {
@@ -120,6 +125,86 @@ class ResponseBackToDetailButton(discord.ui.Button):
         await view.update(interaction)
 
 
+class AddedResponseCopyButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Copy", style=discord.ButtonStyle.success, row=0)
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view: AddedResponseView = self.view  # type: ignore[assignment]
+        view.copy_mode = True
+        await view.update(interaction)
+
+
+class AddedResponseBackToDetailButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Back to Detail", style=discord.ButtonStyle.secondary, row=0)
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view: AddedResponseView = self.view  # type: ignore[assignment]
+        view.copy_mode = False
+        await view.update(interaction)
+
+
+class AddedResponseCloseButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Close", style=discord.ButtonStyle.danger, row=0)
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        await interaction.response.edit_message(content="レスポンス追加結果を閉じました。", embeds=[], view=None)
+
+
+class AddedResponseView(discord.ui.View):
+    def __init__(self, idx: int, resp: dict, owner_id: int):
+        super().__init__(timeout=VIEW_TIMEOUT)
+        self.idx = idx
+        self.resp = resp
+        self.owner_id = owner_id
+        self.copy_mode = False
+        self.rebuild_items()
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.owner_id:
+            return True
+
+        await reject_other_user(interaction)
+        return False
+
+    async def update(self, interaction: discord.Interaction) -> None:
+        self.rebuild_items()
+        await interaction.response.edit_message(
+            content=self.build_content(), embeds=self.build_embeds(), view=self
+        )
+
+    def rebuild_items(self) -> None:
+        self.clear_items()
+        if self.copy_mode:
+            self.add_item(AddedResponseBackToDetailButton())
+            self.add_item(AddedResponseCloseButton())
+            return
+
+        self.add_item(AddedResponseCopyButton())
+        self.add_item(AddedResponseCloseButton())
+
+    def build_content(self) -> str | None:
+        if not self.copy_mode:
+            return None
+
+        return build_response_copy_text(self.resp)
+
+    def build_embeds(self) -> list[discord.Embed]:
+        if self.copy_mode:
+            return []
+
+        embed = build_response_detail_embed(
+            self.idx,
+            self.resp,
+            title="Response Added",
+            color=0x2ECC71,
+        )
+        embed.set_footer(text="/list_responses からも確認できます。")
+        return [embed]
+
+
 class ResponseBrowserView(discord.ui.View):
     def __init__(self, responses: list[dict], owner_id: int):
         super().__init__(timeout=VIEW_TIMEOUT)
@@ -206,9 +291,7 @@ class ResponseBrowserView(discord.ui.View):
             return None
 
         resp = self.responses[self.selected_index]
-        trigger = str(resp.get("trigger", ""))
-        response = str(resp.get("response", ""))
-        return f"trigger:\n{trigger}\n\nresponse:\n{response}"
+        return build_response_copy_text(resp)
 
     def build_embeds(self) -> list[discord.Embed]:
         if self.copy_mode:
@@ -246,36 +329,17 @@ class ResponseBrowserView(discord.ui.View):
         return embed
 
     def _build_detail_embeds(self, idx: int) -> list[discord.Embed]:
-        resp = self.responses[idx]
-        trigger = str(resp.get("trigger", ""))
-        response = str(resp.get("response", ""))
-        flags = ", ".join(self.flags(resp)) or "plain"
-
-        detail = discord.Embed(
-            title=f"Response #{idx}",
-            color=6956287,
-            timestamp=discord.utils.utcnow(),
-        )
-        detail.add_field(name="Filter", value=f"`{FILTERS[self.filter_key]}`", inline=True)
-        detail.add_field(name="Flags", value=f"`{flags}`", inline=True)
-        detail.add_field(name="Trigger", value=code_block(truncate_text(trigger, 1000), "regex"), inline=False)
-        detail.add_field(name="Response", value=code_block(truncate_text(response, 1000), "text"), inline=False)
-
-        return [detail]
+        return [
+            build_response_detail_embed(
+                idx,
+                self.responses[idx],
+                filter_label=FILTERS[self.filter_key],
+            )
+        ]
 
     @staticmethod
     def flags(resp: dict) -> list[str]:
-        response_text = str(resp.get("response", ""))
-        result = []
-        if "func://" in response_text:
-            result.append("func")
-        if "func://preset." in response_text:
-            result.append("preset")
-        if "func://standard." in response_text:
-            result.append("standard")
-        if "img://" in response_text or "imgs://" in response_text:
-            result.append("image")
-        return result
+        return response_flags(resp)
 
     @staticmethod
     def total_pages(count: int) -> int:
