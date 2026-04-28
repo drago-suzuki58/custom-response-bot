@@ -76,6 +76,12 @@ In `response`, you can embed images with custom directives alongside normal text
 python main.py
 ```
 
+## Required Permissions
+
+- Normal responses require the `Send Messages` permission
+- Image embeds created from `img://...` / `imgs://...` also require the `Embed Links` permission
+- If you use slash commands, include the `applications.commands` scope when inviting the bot
+
 ## Commands
 
 - `/list_responses` - Display all configured triggers

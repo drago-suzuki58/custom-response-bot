@@ -76,6 +76,12 @@ DISCORD_TOKEN=your_bot_token_here
 python main.py
 ```
 
+## 必要な権限
+
+- 通常の応答送信には `メッセージを送信` 権限が必要です
+- `img://...` / `imgs://...` による画像埋め込みには、追加で `埋め込みリンク` 権限が必要です
+- スラッシュコマンドを使う場合は、Botを招待するときに `applications.commands` スコープも付与してください
+
 ## コマンド
 
 - `/list_responses` - 設定済みトリガーをすべて表示
