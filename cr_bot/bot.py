@@ -7,8 +7,11 @@ from loguru import logger
 import cr_bot.env as env
 import cr_bot.response as response
 from cr_bot.function_context import FunctionContext
+from cr_bot.function_catalog import FunctionCatalog
 from cr_bot.render_types import RenderedResponse
 from cr_bot.response_renderer import ResponseRenderer
+from cr_bot.ui.function_browser import FunctionBrowserView
+from cr_bot.ui.response_browser import ResponseBrowserView
 
 
 class BotManager:
@@ -136,25 +139,31 @@ class BotManager:
         )
         async def list_event(interaction: discord.Interaction):
             logger.debug(f"{interaction.guild_id} - list_responses")
-            await interaction.response.defer()
 
             responses = self.response_manager.list()
             if not responses:
-                await interaction.followup.send("No response triggers found.")
+                await interaction.response.send_message(
+                    "No response triggers found.", ephemeral=True
+                )
                 return
 
-            embed = discord.Embed(
-                title="Trigger List", color=6956287, timestamp=discord.utils.utcnow()
+            view = ResponseBrowserView(responses, interaction.user.id)
+            await interaction.response.send_message(
+                embeds=view.build_embeds(), view=view, ephemeral=True
             )
 
-            for idx, resp in enumerate(self.response_manager.list()):
-                embed.add_field(
-                    name=f"{idx}: `{resp['trigger']}`",
-                    value=resp["response"],
-                    inline=False,
-                )
+        @self.tree.command(
+            name="list_functions",
+            description="Browse available func:// functions",
+        )
+        async def list_functions_event(interaction: discord.Interaction):
+            logger.debug(f"{interaction.guild_id} - list_functions")
 
-            await interaction.followup.send(embed=embed)
+            catalog = FunctionCatalog()
+            view = FunctionBrowserView(catalog, interaction.user.id)
+            await interaction.response.send_message(
+                embeds=view.build_embeds(), view=view, ephemeral=True
+            )
 
         logger.info("Commands set up successfully!")
 

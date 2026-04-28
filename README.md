@@ -148,6 +148,15 @@ If image embeds work in a test server but not in production, check whether `Embe
 
 ## Commands
 
-- `/list_responses` - Display all configured triggers
+- `/list_responses` - Browse configured triggers with an interactive browser
+- `/list_functions` - Browse available `func://` functions with an interactive browser
 - `/add_response <trigger> <response>` - Add a new trigger response
 - `/remove_response <id>` - Remove a trigger response by ID (ID can be found using `/list_responses`)
+
+`/list_responses` and `/list_functions` use Discord UI components and are visible only to the command user.
+
+- Select items from dropdowns
+- Move through pages with `Prev` / `Next`
+- Navigate function folders with `Back` / `Root`
+- Function details include a copy-friendly `func://...` embed
+- Response details include copy-friendly `trigger` and `response` embeds

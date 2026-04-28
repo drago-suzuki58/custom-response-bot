@@ -146,6 +146,15 @@ python main.py
 
 ## コマンド
 
-- `/list_responses` - 設定済みトリガーをすべて表示
+- `/list_responses` - 設定済みトリガーをインタラクティブなブラウザで表示
+- `/list_functions` - 利用可能な `func://` 関数をインタラクティブなブラウザで表示
 - `/add_response <trigger> <response>` - 新しいトリガー応答を追加
 - `/remove_response <id>` - 指定したトリガー応答をIDで削除(IDは`/list_responses`で確認可能です)
+
+`/list_responses` と `/list_functions` は、実行者だけに表示されるDiscord UIを使います。
+
+- Selectで項目を選択できます
+- `Prev` / `Next` でページ移動できます
+- `Back` / `Root` で階層を戻れます
+- 関数詳細では、コピーしやすい `func://...` のEmbedを表示します
+- レスポンス詳細では、コピーしやすい `trigger` と `response` のEmbedを表示します
