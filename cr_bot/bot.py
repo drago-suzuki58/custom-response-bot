@@ -6,6 +6,7 @@ from loguru import logger
 
 import cr_bot.env as env
 import cr_bot.response as response
+from cr_bot.response_renderer import RenderedResponse, ResponseRenderer
 
 
 class BotManager:
@@ -18,6 +19,7 @@ class BotManager:
         self.bot = bot
         self.tree = tree
         self.response_manager = response_manager
+        self.response_renderer = ResponseRenderer()
 
         self.bot_setup()
 
@@ -43,8 +45,31 @@ class BotManager:
 
             for idx, resp in enumerate(self.response_manager.list()):
                 if re.search(resp["trigger"], message.content, re.IGNORECASE):
-                    await message.channel.send(resp["response"])
+                    rendered = self.response_renderer.render(resp["response"])
+
+                    if rendered.content is None and not rendered.embeds:
+                        logger.warning(f"Response {idx} rendered empty and was skipped.")
+                        break
+
+                    await self.send_rendered_response(message.channel, rendered)
                     break
+
+    async def send_rendered_response(
+        self, channel: discord.abc.Messageable, rendered: RenderedResponse
+    ) -> None:
+        if not rendered.embeds:
+            await channel.send(content=rendered.content)
+            return
+
+        embeds_per_message = 10
+        embed_chunks = [
+            rendered.embeds[idx : idx + embeds_per_message]
+            for idx in range(0, len(rendered.embeds), embeds_per_message)
+        ]
+
+        for idx, embed_chunk in enumerate(embed_chunks):
+            content = rendered.content if idx == 0 else None
+            await channel.send(content=content, embeds=embed_chunk)
 
     def setup_commands(self) -> None:
         logger.info("Setting up commands...")

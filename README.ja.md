@@ -49,6 +49,27 @@ DISCORD_TOKEN=your_bot_token_here
 ]
 ```
 
+`response` では通常のテキストに加えて、独自記法で画像を埋め込めます。
+
+```json5
+[
+  {
+    trigger: "猫",
+    response: "猫画像はこちら imgs://example.com/cat.png",
+  },
+  {
+    trigger: "2枚",
+    response: "imgs://example.com/a.png imgs://example.com/b.png",
+  }
+]
+```
+
+- `img://...` は `http://...` の画像URLとして扱います
+- `imgs://...` は `https://...` の画像URLとして扱います
+- 画像URLはDiscordのEmbed画像として送信されます
+- 通常テキストと文中で混在できます
+- 同じ `response` に複数の画像を含められます
+
 ### ボット起動
 
 ```bash

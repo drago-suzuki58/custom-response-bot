@@ -49,6 +49,27 @@ DISCORD_TOKEN=your_bot_token_here
 ]
 ```
 
+In `response`, you can embed images with custom directives alongside normal text.
+
+```json5
+[
+  {
+    trigger: "cat",
+    response: "Here is a cat imgs://example.com/cat.png"
+  },
+  {
+    trigger: "two images",
+    response: "imgs://example.com/a.png imgs://example.com/b.png"
+  }
+]
+```
+
+- `img://...` is treated as an `http://...` image URL
+- `imgs://...` is treated as an `https://...` image URL
+- Image URLs are sent as Discord embed images
+- Directives can be mixed into normal text
+- Multiple images can be included in one `response`
+
 ### Running the Bot
 
 ```bash
