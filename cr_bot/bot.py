@@ -6,7 +6,9 @@ from loguru import logger
 
 import cr_bot.env as env
 import cr_bot.response as response
-from cr_bot.response_renderer import RenderedResponse, ResponseRenderer
+from cr_bot.function_context import FunctionContext
+from cr_bot.render_types import RenderedResponse
+from cr_bot.response_renderer import ResponseRenderer
 
 
 class BotManager:
@@ -44,8 +46,19 @@ class BotManager:
                 return
 
             for idx, resp in enumerate(self.response_manager.list()):
-                if re.search(resp["trigger"], message.content, re.IGNORECASE):
-                    rendered = self.response_renderer.render(resp["response"])
+                match = re.search(resp["trigger"], message.content, re.IGNORECASE)
+                if match:
+                    context = FunctionContext(
+                        bot=self.bot,
+                        message=message,
+                        author=message.author,
+                        channel=message.channel,
+                        guild=message.guild,
+                        trigger_match=match,
+                    )
+                    rendered = await self.response_renderer.render(
+                        resp["response"], context
+                    )
 
                     if rendered.content is None and not rendered.embeds:
                         logger.warning(f"Response {idx} rendered empty and was skipped.")
